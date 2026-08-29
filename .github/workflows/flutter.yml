@@ -1,0 +1,62 @@
+name: Windows 10 Style RDP via Tailscale
+
+on:
+  workflow_dispatch: # Jalankan manual lewat tombol
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 360 # Batas maksimal 6 jam
+
+    steps:
+    - name: Download dan Install Tailscale
+      run: |
+        Invoke-WebRequest -Uri "https://tailscale.com" -OutFile "tailscale-setup.exe"
+        Start-Process -FilePath "tailscale-setup.exe" -ArgumentList "/quiet" -Wait
+
+    - name: Hubungkan ke Tailscale Network
+      env:
+        TS_KEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      run: |
+        # Menjalankan Tailscale menggunakan Auth Key secara background
+        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$Env:TS_KEY --accept-routes
+
+    - name: Mengubah Sistem & Tampilan ala Windows 10
+      run: |
+        # 1. Mengaktifkan Layanan Audio Windows
+        Set-Service -Name AudioSrv -StartupType Automatic
+        Start-Service AudioSrv
+        
+        # 2. Mengubah Alokasi Performa CPU untuk Aplikasi Desktop
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" -Name "Win32PrioritySeparation" -Value 38
+        
+        # 3. Mengaktifkan Fitur Remote Desktop (RDP) bawaan Windows
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+
+    - name: Membuat Akun Pengguna RDP
+      run: |
+        # Mengatur Password untuk Akun Admin RDP Anda
+        $Password = ConvertTo-SecureString "RahasiaWin10#2026" -AsPlainText -Force
+        Set-LocalUser -Name "runneradmin" -Password $Password
+
+    - name: Menampilkan IP Tailscale & Menjaga Koneksi Tetap Hidup
+      run: |
+        # Mengambil alamat IP private Tailscale milik VM GitHub ini
+        $tsIP = (& "C:\Program Files\Tailscale\tailscale.exe" ip -4)
+        
+        Write-Host "==============================================="
+        Write-Host "=== INFORMASI LOGIN RDP VIA TAILSCALE ==="
+        Write-Host "==============================================="
+        Write-Host "IP Target RDP : $tsIP"
+        Write-Host "Username      : runneradmin"
+        Write-Host "Password      : RahasiaWin10#2026"
+        Write-Host "==============================================="
+        Write-Host "Pastikan Laptop/HP Anda sudah tersambung Tailscale sebelum connect!"
+        
+        # Loop 6 jam agar VM tidak mati otomatis
+        $timeout = 360
+        for ($i = 0; $i -lt $timeout; $i++) {
+            Start-Sleep -Seconds 60
+        }
