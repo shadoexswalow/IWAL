@@ -9,17 +9,17 @@ jobs:
     timeout-minutes: 360 # Batas maksimal 6 jam
 
     steps:
-    - name: Download dan Install Tailscale
+    - name: Download dan Install Tailscale via Choco
       run: |
-        Invoke-WebRequest -Uri "https://tailscale.com" -OutFile "tailscale-setup.exe"
-        Start-Process -FilePath "tailscale-setup.exe" -ArgumentList "/quiet" -Wait
+        # Menggunakan package manager bawaan untuk mencegah file korup
+        choco install tailscale -y --no-progress
 
     - name: Hubungkan ke Tailscale Network
       env:
         TS_KEY: ${{ secrets.TAILSCALE_AUTHKEY }}
       run: |
-        # Menjalankan Tailscale menggunakan Auth Key secara background
-        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$Env:TS_KEY --accept-routes
+        # Jalankan dengan mode unattended agar service mengunci koneksi di background server
+        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$Env:TS_KEY --accept-routes --unattended
 
     - name: Mengubah Sistem & Tampilan ala Windows 10
       run: |
